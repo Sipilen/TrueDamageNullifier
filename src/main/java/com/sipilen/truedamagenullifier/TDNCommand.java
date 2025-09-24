@@ -16,7 +16,7 @@ public class TDNCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length < 1) {
-            sender.sendMessage("§cИспользование: /tdn <disable|reduce|amplify|status|reload|list> [игрок] [время] [причина]");
+            sender.sendMessage("§cИспользование: /tdn <disable|reduce|amplify|status|reload|list|clear> [игрок] [время] [причина]");
             return true;
         }
         String action = args[0].toLowerCase();
@@ -57,6 +57,30 @@ public class TDNCommand implements CommandExecutor {
                             (modifier == TrueDamageNullifier.DamageModifier.DISABLED ? ("§7, §cПричина: " + reason) : ""));
                 }
             }
+            return true;
+        }
+
+        if (action.equals("clear")) {
+            if (args.length < 2) {
+                sender.sendMessage("§cИспользование: /tdn clear <игрок>");
+                return true;
+            }
+            if (!sender.hasPermission("tdn.clear")) {
+                sender.sendMessage("§cУ вас нет прав для этой команды!");
+                return true;
+            }
+            Player target = plugin.getServer().getPlayer(args[1]);
+            if (target == null) {
+                sender.sendMessage("§cИгрок не найден!");
+                return true;
+            }
+            UUID targetId = target.getUniqueId();
+            plugin.playerModifiers.put(targetId, TrueDamageNullifier.DamageModifier.NORMAL);
+            plugin.expiryTimes.remove(targetId);
+            plugin.disableReasons.remove(targetId);
+            plugin.savePlayerModifiers();
+            sender.sendMessage("§aВсе модификаторы урона для " + target.getName() + " сняты. PvP работает стандартно.");
+            target.sendMessage("§aВаши модификаторы урона сняты. PvP работает стандартно.");
             return true;
         }
 
@@ -173,7 +197,7 @@ public class TDNCommand implements CommandExecutor {
                 break;
 
             default:
-                sender.sendMessage("§cНеизвестная команда! Используйте: disable, reduce, amplify, status, reload, list");
+                sender.sendMessage("§cНеизвестная команда! Используйте: disable, reduce, amplify, status, reload, list, clear");
                 break;
         }
 

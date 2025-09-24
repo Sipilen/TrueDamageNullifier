@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 public class TDNTabCompleter implements TabCompleter {
 
     private static final List<String> MAIN_COMMANDS = Arrays.asList(
-            "disable", "reduce", "amplify", "status", "reload", "list"
+            "disable", "reduce", "amplify", "status", "reload", "list", "clear"
     );
 
     @Override
@@ -25,7 +25,7 @@ public class TDNTabCompleter implements TabCompleter {
                     .filter(cmd -> cmd.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
         }
-        if (args.length == 2 && Arrays.asList("disable", "reduce", "amplify", "status").contains(args[0].toLowerCase())) {
+        if (args.length == 2 && Arrays.asList("disable", "reduce", "amplify", "status", "clear").contains(args[0].toLowerCase())) {
             List<String> names = new ArrayList<>();
             for (Player player : Bukkit.getOnlinePlayers()) {
                 names.add(player.getName());
