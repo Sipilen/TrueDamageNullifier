@@ -1,0 +1,27 @@
+name: TrueDamageNullifier
+version: 1.1
+main: com.sipilen.truedamagenullifier.TrueDamageNullifier
+api-version: 1.16
+commands:
+  tdn:
+    description: Управление модификаторами урона для игроков
+    usage: /<command> <disable|reduce|amplify|status|reload|list> [player] [time] [reason]
+permissions:
+  tdn.disable:
+    description: Позволяет отключать урон для игрока
+    default: op
+  tdn.reduce:
+    description: Позволяет уменьшать урон для игрока
+    default: op
+  tdn.amplify:
+    description: Позволяет увеличивать урон для игрока
+    default: op
+  tdn.status:
+    description: Позволяет просматривать статус урона игрока
+    default: op
+  tdn.admin:
+    description: Позволяет перезагружать конфигурацию
+    default: op
+  tdn.list:
+    description: Позволяет видеть список наказанных игроков
+    default: op

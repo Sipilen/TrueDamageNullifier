@@ -1,0 +1,172 @@
+package com.sipilen.truedamagenullifier;
+
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+public class TrueDamageNullifier extends JavaPlugin implements Listener {
+
+    public final Map<UUID, DamageModifier> playerModifiers = new HashMap<>();
+    public final Map<UUID, Long> expiryTimes = new HashMap<>();
+    public final Map<UUID, String> disableReasons = new HashMap<>();
+    public FileConfiguration config;
+
+    public enum DamageModifier {
+        DISABLED, REDUCED, AMPLIFIED, NORMAL
+    }
+
+    @Override
+    public void onEnable() {
+        getServer().getPluginManager().registerEvents(this, this);
+        if (getCommand("tdn") != null) {
+            getCommand("tdn").setExecutor(new TDNCommand(this));
+            getCommand("tdn").setTabCompleter(new TDNTabCompleter());
+        }
+        saveDefaultConfig();
+        config = getConfig();
+        loadPlayerModifiers();
+        startExpiryChecker();
+        getLogger().info("TrueDamageNullifier enabled!");
+    }
+
+    @Override
+    public void onDisable() {
+        savePlayerModifiers();
+        getLogger().info("TrueDamageNullifier disabled!");
+    }
+
+    public void loadPlayerModifiers() {
+        ConfigurationSection section = config.getConfigurationSection("player-modifiers");
+        if (section != null) {
+            for (String key : section.getKeys(false)) {
+                UUID uuid = UUID.fromString(key);
+                DamageModifier modifier = DamageModifier.valueOf(config.getString("player-modifiers." + key + ".modifier"));
+                playerModifiers.put(uuid, modifier);
+                long expiry = config.getLong("player-modifiers." + key + ".expiry", 0);
+                String reason = config.getString("player-modifiers." + key + ".reason", "Не указана");
+                boolean hasExpiry = expiry > 0 && expiry > System.currentTimeMillis();
+                if (modifier != DamageModifier.NORMAL && hasExpiry) {
+                    expiryTimes.put(uuid, expiry);
+                    if (modifier == DamageModifier.DISABLED) {
+                        disableReasons.put(uuid, reason);
+                    }
+                } else if (modifier != DamageModifier.NORMAL && expiry > 0) {
+                    playerModifiers.put(uuid, DamageModifier.NORMAL);
+                }
+            }
+        }
+    }
+
+    public void savePlayerModifiers() {
+        for (Map.Entry<UUID, DamageModifier> entry : playerModifiers.entrySet()) {
+            String path = "player-modifiers." + entry.getKey().toString();
+            config.set(path + ".modifier", entry.getValue().toString());
+            if (entry.getValue() != DamageModifier.NORMAL) {
+                config.set(path + ".expiry", expiryTimes.getOrDefault(entry.getKey(), 0L));
+                if (entry.getValue() == DamageModifier.DISABLED) {
+                    config.set(path + ".reason", disableReasons.getOrDefault(entry.getKey(), "Не указана"));
+                } else {
+                    config.set(path + ".reason", null);
+                }
+            } else {
+                config.set(path + ".expiry", null);
+                config.set(path + ".reason", null);
+            }
+        }
+        saveConfig();
+    }
+
+    public void startExpiryChecker() {
+        new BukkitRunnable() {
+            @Override
+            public void run() {
+                long currentTime = System.currentTimeMillis();
+                for (UUID uuid : new HashMap<>(expiryTimes).keySet()) {
+                    Long expiry = expiryTimes.get(uuid);
+                    if (expiry != null && expiry <= currentTime && expiry > 0) {
+                        playerModifiers.put(uuid, DamageModifier.NORMAL);
+                        expiryTimes.remove(uuid);
+                        disableReasons.remove(uuid);
+                        Player player = getServer().getPlayer(uuid);
+                        if (player != null) {
+                            player.sendMessage("§aВаш модификатор урона снят, PvP включен.");
+                        }
+                        savePlayerModifiers();
+                    }
+                }
+            }
+        }.runTaskTimer(this, 0L, 20L); // Проверка каждую секунду
+    }
+
+    @EventHandler
+    public void onEntityDamage(EntityDamageByEntityEvent event) {
+        // Исходящий урон от игрока
+        if (event.getDamager() instanceof Player) {
+            Player attacker = (Player) event.getDamager();
+            UUID attackerId = attacker.getUniqueId();
+            DamageModifier attackerModifier = playerModifiers.getOrDefault(attackerId, DamageModifier.NORMAL);
+
+            if (attackerModifier == DamageModifier.DISABLED) {
+                event.setCancelled(true);
+                String reasonMsg = disableReasons.getOrDefault(attackerId, "Не указана");
+                long expiry = expiryTimes.getOrDefault(attackerId, 0L);
+                String timeLeft = expiry > 0 ? formatTime(expiry - System.currentTimeMillis()) : "постоянно";
+                attacker.sendMessage("§cВаш PvP отключен. Причина: " + reasonMsg + ". Время до окончания: " + timeLeft);
+                return;
+            }
+            if (attackerModifier == DamageModifier.REDUCED && event.getEntity() instanceof Player) {
+                event.setDamage(event.getDamage() / 3.0); // 1/3 урона
+            }
+        }
+
+        // Входящий урон по игроку
+        if (event.getEntity() instanceof Player) {
+            Player target = (Player) event.getEntity();
+            UUID targetId = target.getUniqueId();
+            DamageModifier targetModifier = playerModifiers.getOrDefault(targetId, DamageModifier.NORMAL);
+
+            if (targetModifier == DamageModifier.AMPLIFIED && event.getDamager() instanceof Player) {
+                event.setDamage(event.getDamage() * 4.0);
+            }
+            // Никакой отмены, если у цели DISABLED!
+        }
+    }
+
+    public String formatTime(long millis) {
+        if (millis <= 0) return "0 секунд";
+        long seconds = millis / 1000;
+        long minutes = seconds / 60;
+        long hours = minutes / 60;
+        seconds %= 60;
+        minutes %= 60;
+        StringBuilder result = new StringBuilder();
+        if (hours > 0) result.append(hours).append(" ч ");
+        if (minutes > 0) result.append(minutes).append(" мин ");
+        if (seconds > 0) result.append(seconds).append(" сек");
+        return result.toString().trim();
+    }
+
+    public long parseTime(String timeStr) {
+        try {
+            String num = timeStr.replaceAll("[^0-9]", "");
+            long value = Long.parseLong(num);
+            if (timeStr.toLowerCase().endsWith("s")) return value * 1000;
+            if (timeStr.toLowerCase().endsWith("m")) return value * 60 * 1000;
+            if (timeStr.toLowerCase().endsWith("h")) return value * 3600 * 1000;
+            if ("0".equals(timeStr)) return 0;
+            return 0;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+}
