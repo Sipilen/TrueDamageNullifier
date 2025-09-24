@@ -35,11 +35,9 @@ public class TDNTabCompleter implements TabCompleter {
                     .collect(Collectors.toList());
         }
         if (args.length == 3 && Arrays.asList("disable", "reduce", "amplify").contains(args[0].toLowerCase())) {
-            // Варианты времени
             return Arrays.asList("30s", "1m", "5m", "1h", "0");
         }
         if (args.length >= 4 && args[0].equalsIgnoreCase("disable")) {
-            // Причину игрок вводит сам, не подсказываем
             return Collections.emptyList();
         }
         return Collections.emptyList();

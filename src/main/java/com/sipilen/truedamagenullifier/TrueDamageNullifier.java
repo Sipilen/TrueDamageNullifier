@@ -3,6 +3,7 @@ package com.sipilen.truedamagenullifier;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -10,6 +11,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -20,6 +22,7 @@ public class TrueDamageNullifier extends JavaPlugin implements Listener {
     public final Map<UUID, Long> expiryTimes = new HashMap<>();
     public final Map<UUID, String> disableReasons = new HashMap<>();
     public FileConfiguration config;
+    public FileConfiguration messages;
 
     public enum DamageModifier {
         DISABLED, REDUCED, AMPLIFIED, NORMAL
@@ -34,6 +37,9 @@ public class TrueDamageNullifier extends JavaPlugin implements Listener {
         }
         saveDefaultConfig();
         config = getConfig();
+        // Load messages.yml
+        saveResource("messages.yml", false);
+        messages = YamlConfiguration.loadConfiguration(new File(getDataFolder(), "messages.yml"));
         loadPlayerModifiers();
         startExpiryChecker();
         getLogger().info("TrueDamageNullifier enabled!");
@@ -99,7 +105,7 @@ public class TrueDamageNullifier extends JavaPlugin implements Listener {
                         disableReasons.remove(uuid);
                         Player player = getServer().getPlayer(uuid);
                         if (player != null) {
-                            player.sendMessage("§aВаш модификатор урона снят, PvP включен.");
+                            player.sendMessage(formatMessage("pvp_enabled", new HashMap<String, String>()));
                         }
                         savePlayerModifiers();
                     }
@@ -117,11 +123,14 @@ public class TrueDamageNullifier extends JavaPlugin implements Listener {
             DamageModifier attackerModifier = playerModifiers.getOrDefault(attackerId, DamageModifier.NORMAL);
 
             if (attackerModifier == DamageModifier.DISABLED) {
-                event.setCancelled(true);
                 String reasonMsg = disableReasons.getOrDefault(attackerId, "Не указана");
                 long expiry = expiryTimes.getOrDefault(attackerId, 0L);
                 String timeLeft = expiry > 0 ? formatTime(expiry - System.currentTimeMillis()) : "постоянно";
-                attacker.sendMessage("§cВаш PvP отключен. Причина: " + reasonMsg + ". Время до окончания: " + timeLeft);
+                event.setCancelled(true);
+                Map<String, String> params = new HashMap<>();
+                params.put("reason", reasonMsg);
+                params.put("time", timeLeft);
+                attacker.sendMessage(formatMessage("pvp_disabled", params));
                 return;
             }
             if (attackerModifier == DamageModifier.REDUCED && event.getEntity() instanceof Player) {
@@ -168,5 +177,19 @@ public class TrueDamageNullifier extends JavaPlugin implements Listener {
         } catch (NumberFormatException e) {
             return 0;
         }
+    }
+
+    public String getMessage(String key) {
+        return messages.getString(key, "§c[Ошибка]: сообщение не найдено");
+    }
+
+    public String formatMessage(String key, Map<String, String> params) {
+        String msg = getMessage(key);
+        if (params != null) {
+            for (Map.Entry<String, String> entry : params.entrySet()) {
+                msg = msg.replace("%" + entry.getKey() + "%", entry.getValue());
+            }
+        }
+        return msg;
     }
 }
