@@ -5,10 +5,12 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.projectiles.ProjectileSource;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.io.File;
@@ -116,7 +118,6 @@ public class TrueDamageNullifier extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onEntityDamage(EntityDamageByEntityEvent event) {
-        // Исходящий урон от игрока
         if (event.getDamager() instanceof Player) {
             Player attacker = (Player) event.getDamager();
             UUID attackerId = attacker.getUniqueId();
@@ -137,17 +138,42 @@ public class TrueDamageNullifier extends JavaPlugin implements Listener {
                 event.setDamage(event.getDamage() / 3.0); // 1/3 урона
             }
         }
+        if (event.getDamager() instanceof Projectile) {
+            Projectile projectile = (Projectile) event.getDamager();
+            ProjectileSource shooter = projectile.getShooter();
+            if (shooter instanceof Player) {
+                Player attacker = (Player) shooter;
+                UUID attackerId = attacker.getUniqueId();
+                DamageModifier attackerModifier = playerModifiers.getOrDefault(attackerId, DamageModifier.NORMAL);
 
-        // Входящий урон по игроку
+                if (attackerModifier == DamageModifier.DISABLED) {
+                    String reasonMsg = disableReasons.getOrDefault(attackerId, "Не указана");
+                    long expiry = expiryTimes.getOrDefault(attackerId, 0L);
+                    String timeLeft = expiry > 0 ? formatTime(expiry - System.currentTimeMillis()) : "постоянно";
+                    event.setCancelled(true);
+                    Map<String, String> params = new HashMap<>();
+                    params.put("reason", reasonMsg);
+                    params.put("time", timeLeft);
+                    attacker.sendMessage(formatMessage("pvp_disabled", params));
+                    return;
+                }
+                if (attackerModifier == DamageModifier.REDUCED && event.getEntity() instanceof Player) {
+                    event.setDamage(event.getDamage() / 3.0);
+                }
+            }
+        }
         if (event.getEntity() instanceof Player) {
             Player target = (Player) event.getEntity();
             UUID targetId = target.getUniqueId();
             DamageModifier targetModifier = playerModifiers.getOrDefault(targetId, DamageModifier.NORMAL);
 
-            if (targetModifier == DamageModifier.AMPLIFIED && event.getDamager() instanceof Player) {
+            if (targetModifier == DamageModifier.AMPLIFIED && (
+                    event.getDamager() instanceof Player ||
+                            event.getDamager() instanceof Projectile && ((Projectile)event.getDamager()).getShooter() instanceof Player
+            )) {
                 event.setDamage(event.getDamage() * 4.0);
             }
-            // Никакой отмены, если у цели DISABLED!
+
         }
     }
 
