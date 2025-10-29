@@ -1,6 +1,6 @@
 # TrueDamageNullifier
 
-[![GitHub release](https://img.shields.io/github/v/release/sipilen/TrueDamageNullifier?color=red)](https://github.com/sipilen/TrueDamageNullifier/releases) [![SpigotMC](https://img.shields.io/badge/SpigotMC-Approved-green.svg)](https://www.spigotmc.org/resources/truedamagenullifier.129837/) [![License](https://img.shields.io/github/license/sipilen/TrueDamageNullifier.svg)](https://github.com/sipilen/TrueDamageNullifier/blob/main/LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/sipilen/TrueDamageNullifier)](https://github.com/sipilen/TrueDamageNullifier/releases) [![SpigotMC](https://img.shields.io/badge/SpigotMC-Approved-green.svg)](https://www.spigotmc.org/resources/truedamagenullifier.129837/) [![License](https://img.shields.io/github/license/sipilen/TrueDamageNullifier.svg)](https://github.com/sipilen/TrueDamageNullifier/blob/main/LICENSE)
 
 **TrueDamageNullifier** — это плагин для серверов на Bukkit/Spigot (API 1.16+), предназначенный для гибкого управления модификаторами урона в PvP-сражениях. Он позволяет админам отключать, уменьшать или усиливать урон между игроками, с привязкой к UUID (для перманентности), IP-адресу (для альтов) и никам (для простоты). Плагин предотвращает обходы (смена ника/IP/VPN), автоматически отслеживает альт-аккаунты и уведомляет админов о подозрительных входах. Все настройки сохраняются в `config.yml`, временные эффекты истекают автоматически. Сообщения настраиваются в `messages.yml`.
 
@@ -76,12 +76,12 @@
 | `/tdn list` | Показывает список всех игроков с активными модификаторами, их типом, оставшимся временем действия и причиной (если применимо). Отображает онлайн/UUID. | - | `/tdn list` |
 | `/tdn clear <игрок>` | Снимает все модификаторы урона с указанного игрока (playerMods), возвращая PvP в стандартное состояние. Не трогает nick/IP/UUID. | `<игрок>` (онлайн). | `/tdn clear Steve` |
 | `/tdn nicklist` | Показывает список всех ников с активными модификаторами, связанными IP, альтами и временем/причиной. | - | `/tdn nicklist` |
-| `/tdn alts <nick>` | Показывает список альт-аккаунтов (история ников по IP) для указанного ника. Находит IP по bind (UUID/IP). | `<nick>` (онлайн или из истории). | `/tdn alts DomerPidoras` |
+| `/tdn alts <nick>` | Показывает список альт-аккаунтов (история ников по IP) для указанного ника. Находит IP по bind (UUID/IP). | `<nick>` (онлайн или из истории). | `/tdn alts Sipilen` |
 | `/tdn nickclear <nick>` | Снимает модификатор с ника, применяет NORMAL для всех онлайн с bound IP/UUID. | `<nick>` (из истории или онлайн). | `/tdn nickclear oldnick` |
 | `/tdn ipclear <nick>` | Снимает модификатор по IP (через ник, авто-bind). Применяет NORMAL для онлайн с IP. | `<nick>` (онлайн для авто-IP). | `/tdn ipclear newnick` |
-| `/tdn ipdisable <nick> [время] [причина]` | Отключает PvP для ника/IP/UUID (авто-bind). Работает как disable, но для альтов. Уведомление админам при alt-join. | `<nick>` (онлайн), [время], [причина]. | `/tdn ipdisable DomerPidoras 0 бан` |
-| `/tdn ipreduce <nick> [время]` | Снижает урон для ника/IP/UUID (авто-bind). | `<nick>` (онлайн), [время]. | `/tdn ipreduce DomerPidoras 30m` |
-| `/tdn ipamplify <nick> [время]` | Увеличивает входящий урон для ника/IP/UUID (авто-bind). | `<nick>` (онлайн), [время]. | `/tdn ipamplify DomerPidoras` |
+| `/tdn ipdisable <nick> [время] [причина]` | Отключает PvP для ника/IP/UUID (авто-bind). Работает как disable, но для альтов. Уведомление админам при alt-join. | `<nick>` (онлайн), [время], [причина]. | `/tdn ipdisable Sipilen 0 бан` |
+| `/tdn ipreduce <nick> [время]` | Снижает урон для ника/IP/UUID (авто-bind). | `<nick>` (онлайн), [время]. | `/tdn ipreduce Sipilen 30m` |
+| `/tdn ipamplify <nick> [время]` | Увеличивает входящий урон для ника/IP/UUID (авто-bind). | `<nick>` (онлайн), [время]. | `/tdn ipamplify Sipilen` |
 
 **Уведомления об альтах:** Автоматически для админов (`tdn.admin`) при входе с bound IP новым ником и активным модом: "Игрок [oldnick] зашёл с нового аккаунта [newnick]. Модификатор [mod] применён. IP: [ip]".
 
@@ -100,19 +100,19 @@
 Авто-очистка старых NORMAL-полей. Пример:
 ```yaml
 nick-modifiers:
-  domerpidoras:
+  Sipilen:
     modifier: DISABLED
     expiry: 0
     reason: "бан"
 ip-bindings:
   192.168.1.100:
-    nick: domerpidoras
+    nick: Sipilen
 uuid-bindings:
   123e4567-e89b-12d3-a456-426614174000:
-    nick: domerpidoras
+    nick: Sipilen
 ip-alts:
   192.168.1.100:
-    nicks: ["domerpidoras", "newalt"]
+    nicks: ["Sipilen", "newalt"]
 ```
 
 ### messages.yml
@@ -127,12 +127,12 @@ alt_notification: "§c[TDN] Игрок %oldnick% зашёл с %newnick%. Mod: %
 - **Отключение PvP:** `/tdn disable Steve 10m Нарушение правил` — отключить Steve на 10 мин с причиной.
 - **Снижение урона:** `/tdn reduce Alex 5m` — снизить урон Alex на 5 мин.
 - **Усиление урона:** `/tdn amplify Bob 1h` — усилить урон по Bob на 1 час.
-- **IP-based отключение:** `/tdn ipdisable DomerPidoras 0 бан` — отключить для nick/IP/UUID (авто-bind).
+- **IP-based отключение:** `/tdn ipdisable Sipilen 0 бан` — отключить для nick/IP/UUID (авто-bind).
 - **Сброс:** `/tdn clear Steve` — сбросить моды Steve.
 - **Статус:** `/tdn status Steve` — статус Steve.
 - **Список:** `/tdn list` — список игроков с модами.
 - **Список ников/IP/alts:** `/tdn nicklist` — список ников/IP/alts.
-- **Альты:** `/tdn alts DomerPidoras` — альты для DomerPidoras.
+- **Альты:** `/tdn alts Sipilen` — альты для Sipilen.
 - **Сброс по нику:** `/tdn nickclear oldnick` — сброс по нику.
 - **Перезагрузка:** `/tdn reload` — перезагрузка.
 
