@@ -1,2 +1,8 @@
-# TrueDamageNullifier default config
+# Модификаторы для конкретных игроков (UUID)
 player-modifiers: {}
+
+# Модификаторы для ников (lowercase, с привязкой по IP)
+nick-modifiers: {}
+
+# Привязки IP (автоматически)
+ip-bindings: {}

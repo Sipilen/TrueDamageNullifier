@@ -14,4 +14,9 @@ usage_disable: "§cИспользование: /tdn disable <игрок> <вре
 usage_reduce: "§cИспользование: /tdn reduce <игрок> <время>"
 usage_amplify: "§cИспользование: /tdn amplify <игрок> <время>"
 usage_clear: "§cИспользование: /tdn clear <игрок>"
-unknown_command: "§cНеизвестная команда! Используйте: disable, reduce, amplify, status, reload, list, clear"
+unknown_command: "§cНеизвестная команда! Используйте: disable, reduce, amplify, status, reload, list, clear, ipdisable, ipreduce, ipamplify, nickclear, nicklist"
+
+# Новые для IP/nick
+nick_damage_disabled: "§aНик %nick% (IP-привязка) отключен на %time% (причина: %reason%)"
+nick_damage_reduced: "§aУрон снижен для ника %nick% (IP-привязка) на %time%"
+nick_damage_amplified: "§aУрон усилен для ника %nick% (IP-привязка) на %time%"
