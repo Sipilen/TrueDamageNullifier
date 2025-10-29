@@ -1,6 +1,6 @@
 # TrueDamageNullifier
 
-[![GitHub release](https://img.shields.io/github/v/release/sipilen/TrueDamageNullifier?color=blue)](https://github.com/sipilen/TrueDamageNullifier/releases) [![SpigotMC](https://img.shields.io/badge/SpigotMC-Approved-green.svg)](https://www.spigotmc.org/resources/true-damage-nullifier.12345/) [![License](https://img.shields.io/github/license/sipilen/TrueDamageNullifier.svg)](https://github.com/sipilen/TrueDamageNullifier/blob/main/LICENSE)
+[![GitHub release](https://img.shields.io/github/v/release/sipilen/TrueDamageNullifier?color=blue)](https://github.com/sipilen/TrueDamageNullifier/releases) [![SpigotMC](https://img.shields.io/badge/SpigotMC-Approved-green.svg)](https://www.spigotmc.org/resources/truedamagenullifier.129837/) [![License](https://img.shields.io/github/license/sipilen/TrueDamageNullifier.svg)](https://github.com/sipilen/TrueDamageNullifier/blob/main/LICENSE)
 
 **TrueDamageNullifier** — это плагин для серверов на Bukkit/Spigot (API 1.16+), предназначенный для гибкого управления модификаторами урона в PvP-сражениях. Он позволяет админам отключать, уменьшать или усиливать урон между игроками, с привязкой к UUID (для перманентности), IP-адресу (для альтов) и никам (для простоты). Плагин предотвращает обходы (смена ника/IP/VPN), автоматически отслеживает альт-аккаунты и уведомляет админов о подозрительных входах. Все настройки сохраняются в `config.yml`, временные эффекты истекают автоматически. Сообщения настраиваются в `messages.yml`.
 
