@@ -4,9 +4,10 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
-import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -40,14 +41,15 @@ public class TDNCommand implements CommandExecutor {
                 plugin.nickExpiryTimes.clear();
                 plugin.nickDisableReasons.clear();
                 plugin.ipToNick.clear();
-                plugin.ipModifiers.clear();
-                plugin.ipExpiryTimes.clear();
-                plugin.ipDisableReasons.clear();
+                plugin.uuidToNick.clear();
+                plugin.ipToAlts.clear();
                 plugin.messages = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
                         new java.io.File(plugin.getDataFolder(), "messages.yml"));
                 plugin.loadPlayerModifiers();
                 plugin.loadNickModifiers();
                 plugin.loadIpBindings();
+                plugin.loadUuidBindings();
+                plugin.loadIpAlts();
                 sender.sendMessage(plugin.getMessage("config_reloaded"));
                 return true;
             }
@@ -110,14 +112,75 @@ public class TDNCommand implements CommandExecutor {
                         String reason = modifier == TrueDamageNullifier.DamageModifier.DISABLED
                                 ? plugin.nickDisableReasons.getOrDefault(nickLower, "Не указана")
                                 : "-";
+                        // ALTS: Показать альты
+                        StringBuilder altList = new StringBuilder();
+                        for (String altIp : plugin.ipToAlts.keySet()) {
+                            if (plugin.ipToNick.get(altIp) != null && plugin.ipToNick.get(altIp).equals(nickLower)) {
+                                List<String> alts = plugin.ipToAlts.get(altIp);
+                                for (String alt : alts) {
+                                    if (!alt.equals(nickLower)) {
+                                        if (altList.length() > 0) altList.append(", ");
+                                        altList.append(alt);
+                                    }
+                                }
+                            }
+                        }
+                        String altsStr = altList.length() > 0 ? "§7, §dАльты: " + altList.toString() : "";
                         sender.sendMessage("§a" + nickLower + "§7: §b" + modifier +
                                 "§7, §eОсталось: " + timeLeft +
-                                "§7, §cIP: " + ipList +
+                                "§7, §cIP: " + ipList + altsStr +
                                 (modifier == TrueDamageNullifier.DamageModifier.DISABLED ? ("§7, §cПричина: " + reason) : ""));
                     }
                 }
                 if (!hasNickMods) {
                     sender.sendMessage("§7Нет активных модификаторов для ников.");
+                }
+                return true;
+            }
+
+            case "alts": {
+                // ALTS: Показать альты по нику
+                if (args.length < 2) {
+                    sender.sendMessage("§cИспользование: /tdn alts <nick>");
+                    return true;
+                }
+                if (!sender.hasPermission("tdn.alts")) {
+                    sender.sendMessage(plugin.getMessage("no_permission"));
+                    return true;
+                }
+                String searchNick = args[1].toLowerCase();
+                String ip = null;
+                // Ищем IP по bound (UUID или IP)
+                UUID searchUuid = null;
+                for (UUID u : plugin.uuidToNick.keySet()) {
+                    if (plugin.uuidToNick.get(u).equals(searchNick)) {
+                        searchUuid = u;
+                        break;
+                    }
+                }
+                if (searchUuid != null) {
+                    Player p = plugin.getServer().getPlayer(searchUuid);
+                    if (p != null) ip = plugin.getPlayerIp(p);
+                } else {
+                    for (Map.Entry<String, String> e : plugin.ipToNick.entrySet()) {
+                        if (e.getValue().equals(searchNick)) {
+                            ip = e.getKey();
+                            break;
+                        }
+                    }
+                }
+                if (ip == null) {
+                    sender.sendMessage("§cНик §e" + searchNick + " §cне bound к IP. Нет альтов.");
+                    return true;
+                }
+                List<String> alts = plugin.ipToAlts.getOrDefault(ip, new ArrayList<>());
+                if (alts.isEmpty()) {
+                    sender.sendMessage("§cДля IP §a" + ip + " §c(ник §e" + searchNick + "§c) альтов нет.");
+                    return true;
+                }
+                sender.sendMessage("§eАльт-аккаунты для §a" + ip + " §e(основной: §b" + searchNick + "§e):");
+                for (String alt : alts) {
+                    sender.sendMessage("§a• §e" + alt);
                 }
                 return true;
             }
@@ -149,10 +212,6 @@ public class TDNCommand implements CommandExecutor {
             }
 
             case "nickclear": {
-                if (!(sender instanceof ConsoleCommandSender)) {
-                    sender.sendMessage("§cЭта команда доступна только из консоли!");
-                    return true;
-                }
                 if (args.length < 2) {
                     sender.sendMessage("§cИспользование: /tdn nickclear <nick>");
                     return true;
@@ -165,32 +224,49 @@ public class TDNCommand implements CommandExecutor {
                 plugin.nickModifiers.put(nickClearLower, TrueDamageNullifier.DamageModifier.NORMAL);
                 plugin.nickExpiryTimes.remove(nickClearLower);
                 plugin.nickDisableReasons.remove(nickClearLower);
-                // Сбрасываем связанные IP
+                // Применяем NORMAL к онлайн-игрокам с bound к этому nick
                 for (String ip : new HashMap<>(plugin.ipToNick).keySet()) {
                     if (plugin.ipToNick.get(ip).equals(nickClearLower)) {
-                        plugin.ipModifiers.put(ip, TrueDamageNullifier.DamageModifier.NORMAL);
-                        plugin.ipExpiryTimes.remove(ip);
-                        plugin.ipDisableReasons.remove(ip);
-                        // Обновляем онлайн-игроков
-                        for (Player p : Bukkit.getOnlinePlayers()) {
-                            if (plugin.getPlayerIp(p).equals(ip)) {
-                                UUID uuid = p.getUniqueId();
-                                plugin.playerModifiers.put(uuid, TrueDamageNullifier.DamageModifier.NORMAL);
-                                plugin.expiryTimes.remove(uuid);
-                                plugin.disableReasons.remove(uuid);
-                                p.sendMessage(plugin.getMessage("pvp_enabled"));
-                            }
-                        }
+                        plugin.applyNickModifierToIpPlayers(ip, TrueDamageNullifier.DamageModifier.NORMAL, 0L, "");
                     }
                 }
                 plugin.saveNickModifiers();
-                plugin.saveIpBindings();
                 sender.sendMessage("§aМодификаторы для ника §e" + nickClearLower + " §aи связанных IP очищены.");
                 return true;
             }
 
+            case "ipclear": {
+                if (args.length < 2) {
+                    sender.sendMessage("§cИспользование: /tdn ipclear <nick>");
+                    return true;
+                }
+                if (!sender.hasPermission("tdn.ipclear")) {
+                    sender.sendMessage(plugin.getMessage("no_permission"));
+                    return true;
+                }
+                Player target = plugin.getServer().getPlayer(args[1]);
+                if (target == null) {
+                    sender.sendMessage(plugin.getMessage("player_not_found"));
+                    return true;
+                }
+                String ip = plugin.getPlayerIp(target);
+                String nickLower = target.getName().toLowerCase();
+                String originalNick = plugin.ipToNick.get(ip);
+                if (originalNick == null) {
+                    plugin.ipToNick.put(ip, nickLower);
+                    plugin.saveIpBindings();
+                    originalNick = nickLower;
+                }
+                plugin.nickModifiers.put(originalNick, TrueDamageNullifier.DamageModifier.NORMAL);
+                plugin.nickExpiryTimes.remove(originalNick);
+                plugin.nickDisableReasons.remove(originalNick);
+                plugin.saveNickModifiers();
+                plugin.applyNickModifierToIpPlayers(ip, TrueDamageNullifier.DamageModifier.NORMAL, 0L, "");
+                sender.sendMessage("§aМодификаторы для ника §e" + originalNick + " §a(IP: " + ip + ") очищены.");
+                return true;
+            }
+
             case "disable": {
-                // Обычная disable для онлайн-игрока (не IP)
                 if (args.length < 2) {
                     sender.sendMessage(plugin.getMessage("specify_player"));
                     return true;
@@ -214,10 +290,13 @@ public class TDNCommand implements CommandExecutor {
                     sender.sendMessage(plugin.getMessage("incorrect_time_format"));
                     return true;
                 }
-                String disableReason = String.join(" ", args).substring(args[0].length() + args[1].length() + args[2].length() + 3).trim();
-                plugin.playerModifiers.put(targetDisableId, TrueDamageNullifier.DamageModifier.DISABLED);
+                // FIXED: Правильный парсинг reason (от args[3] до конца)
+                String disableReason = args.length > 3 ? String.join(" ", java.util.Arrays.copyOfRange(args, 3, args.length)) : "Не указана";
+                long expiry = (duration > 0) ? System.currentTimeMillis() + duration : 0L;
+                TrueDamageNullifier.DamageModifier mod = TrueDamageNullifier.DamageModifier.DISABLED;
+                plugin.playerModifiers.put(targetDisableId, mod);
                 if (duration > 0) {
-                    plugin.expiryTimes.put(targetDisableId, System.currentTimeMillis() + duration);
+                    plugin.expiryTimes.put(targetDisableId, expiry);
                 } else {
                     plugin.expiryTimes.remove(targetDisableId);
                 }
@@ -233,15 +312,18 @@ public class TDNCommand implements CommandExecutor {
                 targetDisable.sendMessage(plugin.formatMessage("pvp_disabled", paramsDisableSelf));
                 plugin.getLogger().info("Disabled damage for " + targetDisable.getName() + " for " + (duration > 0 ? plugin.formatTime(duration) : "permanently") + ". Reason: " + disableReason);
                 plugin.savePlayerModifiers();
+                // UUID-BIND: Bind UUID к current nick если mod != NORMAL
+                String nickLower = targetDisable.getName().toLowerCase();
+                if (!plugin.uuidToNick.containsKey(targetDisableId)) {
+                    plugin.uuidToNick.put(targetDisableId, nickLower);
+                    plugin.saveUuidBindings();
+                    plugin.getLogger().info("UUID-bound " + targetDisable.getName() + " to nick " + nickLower);
+                }
+                plugin.applyNickModifierToUuidPlayer(targetDisableId, mod, expiry, disableReason);
                 return true;
             }
 
             case "ipdisable": {
-                // Теперь для ника: /tdn ipdisable <nick> [time] [reason...]
-                if (!(sender instanceof ConsoleCommandSender)) {
-                    sender.sendMessage("§cЭта команда доступна только из консоли!");
-                    return true;
-                }
                 if (args.length < 2) {
                     sender.sendMessage("§cИспользование: /tdn ipdisable <nick> [time] [reason...]");
                     return true;
@@ -250,7 +332,11 @@ public class TDNCommand implements CommandExecutor {
                     sender.sendMessage(plugin.getMessage("no_permission"));
                     return true;
                 }
-                String nickDisableLower = args[1].toLowerCase();
+                Player target = plugin.getServer().getPlayer(args[1]);
+                if (target == null) {
+                    sender.sendMessage(plugin.getMessage("player_not_found"));
+                    return true;
+                }
                 String timeStr = (args.length > 2) ? args[2] : "0";
                 String reason = (args.length > 3) ? String.join(" ", java.util.Arrays.copyOfRange(args, 3, args.length)) : "Не указана";
                 long duration = plugin.parseTime(timeStr);
@@ -258,44 +344,47 @@ public class TDNCommand implements CommandExecutor {
                     sender.sendMessage(plugin.getMessage("incorrect_time_format"));
                     return true;
                 }
-                long expiry = (duration > 0) ? System.currentTimeMillis() + duration : 0;
-                plugin.nickModifiers.put(nickDisableLower, TrueDamageNullifier.DamageModifier.DISABLED);
-                plugin.nickExpiryTimes.put(nickDisableLower, expiry);
-                plugin.nickDisableReasons.put(nickDisableLower, reason);
-                // Применяем сразу к связанным IP и онлайн-игрокам
-                for (String ip : new HashMap<>(plugin.ipToNick).keySet()) {
-                    if (plugin.ipToNick.get(ip).equals(nickDisableLower)) {
-                        plugin.ipModifiers.put(ip, TrueDamageNullifier.DamageModifier.DISABLED);
-                        plugin.ipExpiryTimes.put(ip, expiry);
-                        plugin.ipDisableReasons.put(ip, reason);
-                        for (Player p : Bukkit.getOnlinePlayers()) {
-                            if (plugin.getPlayerIp(p).equals(ip)) {
-                                UUID uuid = p.getUniqueId();
-                                plugin.playerModifiers.put(uuid, TrueDamageNullifier.DamageModifier.DISABLED);
-                                plugin.expiryTimes.put(uuid, expiry);
-                                plugin.disableReasons.put(uuid, reason);
-                                Map<String, String> paramsSelf = new HashMap<>();
-                                paramsSelf.put("reason", reason);
-                                String timeLeft = (expiry > 0) ? plugin.formatTime(expiry - System.currentTimeMillis()) : "постоянно";
-                                paramsSelf.put("time", timeLeft);
-                                p.sendMessage(plugin.formatMessage("pvp_disabled", paramsSelf));
-                            }
-                        }
-                    }
+                long expiry = (duration > 0) ? System.currentTimeMillis() + duration : 0L;
+
+                String ip = plugin.getPlayerIp(target);
+                String nickLower = target.getName().toLowerCase();
+                String originalNick = plugin.ipToNick.get(ip);
+                if (originalNick == null) {
+                    // Авто-bind к current nick
+                    plugin.ipToNick.put(ip, nickLower);
+                    plugin.saveIpBindings();
+                    sender.sendMessage("§aIP " + ip + " bound к нику " + nickLower);
+                    originalNick = nickLower;
                 }
+
+                // Устанавливаем mod для original nick
+                plugin.nickModifiers.put(originalNick, TrueDamageNullifier.DamageModifier.DISABLED);
+                plugin.nickExpiryTimes.put(originalNick, expiry);
+                plugin.nickDisableReasons.put(originalNick, reason);
                 plugin.saveNickModifiers();
-                plugin.saveIpBindings();
+
+                // Немедленно применяем к онлайн с IP (включая target)
+                plugin.applyNickModifierToIpPlayers(ip, TrueDamageNullifier.DamageModifier.DISABLED, expiry, reason);
+
+                // UUID-BIND: Bind UUID target'а к originalNick
+                UUID targetUuid = target.getUniqueId();
+                if (!plugin.uuidToNick.containsKey(targetUuid)) {
+                    plugin.uuidToNick.put(targetUuid, originalNick);
+                    plugin.saveUuidBindings();
+                    plugin.getLogger().info("UUID-bound " + target.getName() + " to nick " + originalNick);
+                }
+
                 Map<String, String> params = new HashMap<>();
-                params.put("nick", nickDisableLower);
+                params.put("nick", originalNick);
+                params.put("ip", ip);
                 params.put("time", (duration > 0 ? plugin.formatTime(duration) : "постоянно"));
                 params.put("reason", reason);
-                sender.sendMessage(plugin.formatMessage("nick_damage_disabled", params));
-                plugin.getLogger().info("IP-disabled damage for nick " + nickDisableLower + " for " + (duration > 0 ? plugin.formatTime(duration) : "permanently") + ". Reason: " + reason);
+                sender.sendMessage("§aPvP отключено для ника §e" + originalNick + " §a(IP: " + ip + ") на " + params.get("time") + ". Причина: " + reason);
+                plugin.getLogger().info("IP-disabled damage for nick " + originalNick + " (IP " + ip + ") for " + (duration > 0 ? plugin.formatTime(duration) : "permanently") + ". Reason: " + reason);
                 return true;
             }
 
             case "reduce": {
-                // Обычная reduce для онлайн-игрока
                 if (args.length < 2) {
                     sender.sendMessage(plugin.getMessage("specify_player"));
                     return true;
@@ -319,9 +408,11 @@ public class TDNCommand implements CommandExecutor {
                     sender.sendMessage(plugin.getMessage("incorrect_time_format"));
                     return true;
                 }
-                plugin.playerModifiers.put(targetReduceId, TrueDamageNullifier.DamageModifier.REDUCED);
+                long expiryReduce = (reduceDuration > 0) ? System.currentTimeMillis() + reduceDuration : 0L;
+                TrueDamageNullifier.DamageModifier mod = TrueDamageNullifier.DamageModifier.REDUCED;
+                plugin.playerModifiers.put(targetReduceId, mod);
                 if (reduceDuration > 0) {
-                    plugin.expiryTimes.put(targetReduceId, System.currentTimeMillis() + reduceDuration);
+                    plugin.expiryTimes.put(targetReduceId, expiryReduce);
                 } else {
                     plugin.expiryTimes.remove(targetReduceId);
                 }
@@ -332,15 +423,18 @@ public class TDNCommand implements CommandExecutor {
                 sender.sendMessage(plugin.formatMessage("damage_reduced", paramsReduce));
                 plugin.getLogger().info("Reduced outgoing damage for " + targetReduce.getName());
                 plugin.savePlayerModifiers();
+                // UUID-BIND: Bind если mod != NORMAL
+                String nickLower = targetReduce.getName().toLowerCase();
+                if (!plugin.uuidToNick.containsKey(targetReduceId)) {
+                    plugin.uuidToNick.put(targetReduceId, nickLower);
+                    plugin.saveUuidBindings();
+                    plugin.getLogger().info("UUID-bound " + targetReduce.getName() + " to nick " + nickLower);
+                }
+                plugin.applyNickModifierToUuidPlayer(targetReduceId, mod, expiryReduce, "");
                 return true;
             }
 
             case "ipreduce": {
-                // Теперь для ника
-                if (!(sender instanceof ConsoleCommandSender)) {
-                    sender.sendMessage("§cЭта команда доступна только из консоли!");
-                    return true;
-                }
                 if (args.length < 2) {
                     sender.sendMessage("§cИспользование: /tdn ipreduce <nick> [time]");
                     return true;
@@ -349,45 +443,54 @@ public class TDNCommand implements CommandExecutor {
                     sender.sendMessage(plugin.getMessage("no_permission"));
                     return true;
                 }
-                String nickReduceLower = args[1].toLowerCase();
+                Player target = plugin.getServer().getPlayer(args[1]);
+                if (target == null) {
+                    sender.sendMessage(plugin.getMessage("player_not_found"));
+                    return true;
+                }
                 String timeStrReduce = (args.length > 2) ? args[2] : "0";
                 long reduceDuration = plugin.parseTime(timeStrReduce);
                 if (reduceDuration <= 0 && !"0".equals(timeStrReduce)) {
                     sender.sendMessage(plugin.getMessage("incorrect_time_format"));
                     return true;
                 }
-                long expiryReduce = (reduceDuration > 0) ? System.currentTimeMillis() + reduceDuration : 0;
-                plugin.nickModifiers.put(nickReduceLower, TrueDamageNullifier.DamageModifier.REDUCED);
-                plugin.nickExpiryTimes.put(nickReduceLower, expiryReduce);
-                plugin.nickDisableReasons.remove(nickReduceLower);
-                // Применяем к связанным IP и игрокам
-                for (String ip : new HashMap<>(plugin.ipToNick).keySet()) {
-                    if (plugin.ipToNick.get(ip).equals(nickReduceLower)) {
-                        plugin.ipModifiers.put(ip, TrueDamageNullifier.DamageModifier.REDUCED);
-                        plugin.ipExpiryTimes.put(ip, expiryReduce);
-                        plugin.ipDisableReasons.remove(ip);
-                        for (Player p : Bukkit.getOnlinePlayers()) {
-                            if (plugin.getPlayerIp(p).equals(ip)) {
-                                UUID uuid = p.getUniqueId();
-                                plugin.playerModifiers.put(uuid, TrueDamageNullifier.DamageModifier.REDUCED);
-                                plugin.expiryTimes.put(uuid, expiryReduce);
-                                plugin.disableReasons.remove(uuid);
-                            }
-                        }
-                    }
+                long expiryReduce = (reduceDuration > 0) ? System.currentTimeMillis() + reduceDuration : 0L;
+
+                String ip = plugin.getPlayerIp(target);
+                String nickLower = target.getName().toLowerCase();
+                String originalNick = plugin.ipToNick.get(ip);
+                if (originalNick == null) {
+                    plugin.ipToNick.put(ip, nickLower);
+                    plugin.saveIpBindings();
+                    sender.sendMessage("§aIP " + ip + " bound к нику " + nickLower);
+                    originalNick = nickLower;
                 }
+
+                plugin.nickModifiers.put(originalNick, TrueDamageNullifier.DamageModifier.REDUCED);
+                plugin.nickExpiryTimes.put(originalNick, expiryReduce);
+                plugin.nickDisableReasons.remove(originalNick);
                 plugin.saveNickModifiers();
-                plugin.saveIpBindings();
+
+                plugin.applyNickModifierToIpPlayers(ip, TrueDamageNullifier.DamageModifier.REDUCED, expiryReduce, "");
+
+                // UUID-BIND: Bind UUID target'а к originalNick
+                UUID targetUuid = target.getUniqueId();
+                if (!plugin.uuidToNick.containsKey(targetUuid)) {
+                    plugin.uuidToNick.put(targetUuid, originalNick);
+                    plugin.saveUuidBindings();
+                    plugin.getLogger().info("UUID-bound " + target.getName() + " to nick " + originalNick);
+                }
+
                 Map<String, String> paramsReduceIp = new HashMap<>();
-                paramsReduceIp.put("nick", nickReduceLower);
+                paramsReduceIp.put("nick", originalNick);
+                paramsReduceIp.put("ip", ip);
                 paramsReduceIp.put("time", (reduceDuration > 0 ? plugin.formatTime(reduceDuration) : "постоянно"));
-                sender.sendMessage(plugin.formatMessage("nick_damage_reduced", paramsReduceIp));
-                plugin.getLogger().info("IP-reduced outgoing damage for nick " + nickReduceLower);
+                sender.sendMessage("§aУрон уменьшен для ника §e" + originalNick + " §a(IP: " + ip + ") на " + paramsReduceIp.get("time"));
+                plugin.getLogger().info("IP-reduced outgoing damage for nick " + originalNick + " (IP " + ip + ")");
                 return true;
             }
 
             case "amplify": {
-                // Обычная amplify для онлайн-игрока
                 if (args.length < 2) {
                     sender.sendMessage(plugin.getMessage("specify_player"));
                     return true;
@@ -411,9 +514,11 @@ public class TDNCommand implements CommandExecutor {
                     sender.sendMessage(plugin.getMessage("incorrect_time_format"));
                     return true;
                 }
-                plugin.playerModifiers.put(targetAmplifyId, TrueDamageNullifier.DamageModifier.AMPLIFIED);
+                long expiryAmplify = (amplifyDuration > 0) ? System.currentTimeMillis() + amplifyDuration : 0L;
+                TrueDamageNullifier.DamageModifier mod = TrueDamageNullifier.DamageModifier.AMPLIFIED;
+                plugin.playerModifiers.put(targetAmplifyId, mod);
                 if (amplifyDuration > 0) {
-                    plugin.expiryTimes.put(targetAmplifyId, System.currentTimeMillis() + amplifyDuration);
+                    plugin.expiryTimes.put(targetAmplifyId, expiryAmplify);
                 } else {
                     plugin.expiryTimes.remove(targetAmplifyId);
                 }
@@ -424,15 +529,18 @@ public class TDNCommand implements CommandExecutor {
                 sender.sendMessage(plugin.formatMessage("damage_amplified", paramsAmplify));
                 plugin.getLogger().info("Amplified incoming damage for " + targetAmplify.getName());
                 plugin.savePlayerModifiers();
+                // UUID-BIND: Bind если mod != NORMAL
+                String nickLower = targetAmplify.getName().toLowerCase();
+                if (!plugin.uuidToNick.containsKey(targetAmplifyId)) {
+                    plugin.uuidToNick.put(targetAmplifyId, nickLower);
+                    plugin.saveUuidBindings();
+                    plugin.getLogger().info("UUID-bound " + targetAmplify.getName() + " to nick " + nickLower);
+                }
+                plugin.applyNickModifierToUuidPlayer(targetAmplifyId, mod, expiryAmplify, "");
                 return true;
             }
 
             case "ipamplify": {
-                // Теперь для ника
-                if (!(sender instanceof ConsoleCommandSender)) {
-                    sender.sendMessage("§cЭта команда доступна только из консоли!");
-                    return true;
-                }
                 if (args.length < 2) {
                     sender.sendMessage("§cИспользование: /tdn ipamplify <nick> [time]");
                     return true;
@@ -441,40 +549,50 @@ public class TDNCommand implements CommandExecutor {
                     sender.sendMessage(plugin.getMessage("no_permission"));
                     return true;
                 }
-                String nickAmplifyLower = args[1].toLowerCase();
+                Player target = plugin.getServer().getPlayer(args[1]);
+                if (target == null) {
+                    sender.sendMessage(plugin.getMessage("player_not_found"));
+                    return true;
+                }
                 String timeStrAmplify = (args.length > 2) ? args[2] : "0";
                 long amplifyDuration = plugin.parseTime(timeStrAmplify);
                 if (amplifyDuration <= 0 && !"0".equals(timeStrAmplify)) {
                     sender.sendMessage(plugin.getMessage("incorrect_time_format"));
                     return true;
                 }
-                long expiryAmplify = (amplifyDuration > 0) ? System.currentTimeMillis() + amplifyDuration : 0;
-                plugin.nickModifiers.put(nickAmplifyLower, TrueDamageNullifier.DamageModifier.AMPLIFIED);
-                plugin.nickExpiryTimes.put(nickAmplifyLower, expiryAmplify);
-                plugin.nickDisableReasons.remove(nickAmplifyLower);
-                // Применяем к связанным IP и игрокам
-                for (String ip : new HashMap<>(plugin.ipToNick).keySet()) {
-                    if (plugin.ipToNick.get(ip).equals(nickAmplifyLower)) {
-                        plugin.ipModifiers.put(ip, TrueDamageNullifier.DamageModifier.AMPLIFIED);
-                        plugin.ipExpiryTimes.put(ip, expiryAmplify);
-                        plugin.ipDisableReasons.remove(ip);
-                        for (Player p : Bukkit.getOnlinePlayers()) {
-                            if (plugin.getPlayerIp(p).equals(ip)) {
-                                UUID uuid = p.getUniqueId();
-                                plugin.playerModifiers.put(uuid, TrueDamageNullifier.DamageModifier.AMPLIFIED);
-                                plugin.expiryTimes.put(uuid, expiryAmplify);
-                                plugin.disableReasons.remove(uuid);
-                            }
-                        }
-                    }
+                long expiryAmplify = (amplifyDuration > 0) ? System.currentTimeMillis() + amplifyDuration : 0L;
+
+                String ip = plugin.getPlayerIp(target);
+                String nickLower = target.getName().toLowerCase();
+                String originalNick = plugin.ipToNick.get(ip);
+                if (originalNick == null) {
+                    plugin.ipToNick.put(ip, nickLower);
+                    plugin.saveIpBindings();
+                    sender.sendMessage("§aIP " + ip + " bound к нику " + nickLower);
+                    originalNick = nickLower;
                 }
+
+                plugin.nickModifiers.put(originalNick, TrueDamageNullifier.DamageModifier.AMPLIFIED);
+                plugin.nickExpiryTimes.put(originalNick, expiryAmplify);
+                plugin.nickDisableReasons.remove(originalNick);
                 plugin.saveNickModifiers();
-                plugin.saveIpBindings();
+
+                plugin.applyNickModifierToIpPlayers(ip, TrueDamageNullifier.DamageModifier.AMPLIFIED, expiryAmplify, "");
+
+                // UUID-BIND: Bind UUID target'а к originalNick
+                UUID targetUuid = target.getUniqueId();
+                if (!plugin.uuidToNick.containsKey(targetUuid)) {
+                    plugin.uuidToNick.put(targetUuid, originalNick);
+                    plugin.saveUuidBindings();
+                    plugin.getLogger().info("UUID-bound " + target.getName() + " to nick " + originalNick);
+                }
+
                 Map<String, String> paramsAmplifyIp = new HashMap<>();
-                paramsAmplifyIp.put("nick", nickAmplifyLower);
+                paramsAmplifyIp.put("nick", originalNick);
+                paramsAmplifyIp.put("ip", ip);
                 paramsAmplifyIp.put("time", (amplifyDuration > 0 ? plugin.formatTime(amplifyDuration) : "постоянно"));
-                sender.sendMessage(plugin.formatMessage("nick_damage_amplified", paramsAmplifyIp));
-                plugin.getLogger().info("IP-amplified incoming damage for nick " + nickAmplifyLower);
+                sender.sendMessage("§aУрон усилен для ника §e" + originalNick + " §a(IP: " + ip + ") на " + paramsAmplifyIp.get("time"));
+                plugin.getLogger().info("IP-amplified incoming damage for nick " + originalNick + " (IP " + ip + ")");
                 return true;
             }
 

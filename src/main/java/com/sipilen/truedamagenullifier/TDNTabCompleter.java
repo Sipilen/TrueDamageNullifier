@@ -22,7 +22,7 @@ public class TDNTabCompleter implements TabCompleter {
 
     private static final List<String> MAIN_COMMANDS = Arrays.asList(
             "disable", "reduce", "amplify", "status", "reload", "list", "clear",
-            "ipdisable", "ipreduce", "ipamplify", "nickclear", "nicklist"
+            "ipdisable", "ipreduce", "ipamplify", "nickclear", "nicklist", "ipclear", "alts"
     );
 
     @Override
@@ -41,11 +41,29 @@ public class TDNTabCompleter implements TabCompleter {
                     .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
                     .collect(Collectors.toList());
         }
-        if (args.length == 2 && Arrays.asList("ipdisable", "ipreduce", "ipamplify", "nickclear").contains(args[0].toLowerCase())) {
-            // Для ников - предлагаем ники из nickModifiers
-            return plugin.nickModifiers.keySet().stream()
-                    .filter(nick -> nick.startsWith(args[1].toLowerCase()))
-                    .collect(Collectors.toList());
+        if (args.length == 2 && Arrays.asList("ipdisable", "ipreduce", "ipamplify", "nickclear", "ipclear", "alts").contains(args[0].toLowerCase())) {
+            // Для ников - предлагаем онлайн-игроков (оригинальный регистр) + исторические ники из привязок IP (lowercase)
+            List<String> suggestions = new ArrayList<>();
+            String partial = args[1].toLowerCase();
+
+            // Сначала онлайн-игроки (оригинальный регистр)
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                String name = player.getName();
+                String lowerName = name.toLowerCase();
+                if (lowerName.startsWith(partial)) {
+                    suggestions.add(name);
+                }
+            }
+
+            // Затем исторические ники (lowercase), если не совпадают с онлайн (по lower)
+            for (String histNick : plugin.ipToNick.values()) {
+                if (histNick.startsWith(partial) &&
+                        suggestions.stream().noneMatch(s -> s.toLowerCase().equals(histNick))) {
+                    suggestions.add(histNick);
+                }
+            }
+
+            return suggestions;
         }
         if (args.length == 3 && Arrays.asList("disable", "reduce", "amplify", "ipdisable", "ipreduce", "ipamplify").contains(args[0].toLowerCase())) {
             return Arrays.asList("30s", "1m", "5m", "1h", "0");

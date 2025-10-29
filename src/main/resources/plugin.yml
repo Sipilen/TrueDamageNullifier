@@ -1,48 +1,56 @@
-name: TrueDamageNullifier-v1.3
-version: 1.3
+name: TrueDamageNullifier
+version: "1.4"
 main: com.sipilen.truedamagenullifier.TrueDamageNullifier
 api-version: 1.16
+author: Sipilen
+description: Плагин создан и разработан для сервера minegame.net
 commands:
   tdn:
-    description: Управление модификаторами урона для игроков (включая IP-привязку по никам)
-    usage: /<command> <disable|reduce|amplify|status|reload|list|clear|ipdisable|ipreduce|ipamplify|nickclear|nicklist> [player/nick] [time] [reason]
+    description: "Управление модификаторами урона для игроков (включая IP/UUID/alt-привязку)"
+    usage: "/<command> <disable|reduce|amplify|status|reload|list|clear|ipdisable|ipreduce|ipamplify|nickclear|nicklist|ipclear|alts> [player/nick] [time] [reason]"
 permissions:
   tdn.use:
-    description: Базовое использование команды
+    description: "Базовое использование команды"
     default: op
   tdn.admin:
-    description: Полный доступ (reload, list, nicklist)
+    description: "Полный доступ (reload, list, nicklist, alt-уведомления)"
     default: op
   tdn.list:
-    description: Просмотр списка модификаторов игроков
+    description: "Просмотр списка модификаторов игроков"
     default: op
   tdn.nicklist:
-    description: Просмотр списка модификаторов по никам/IP
+    description: "Просмотр списка модификаторов по никам/IP"
+    default: op
+  tdn.alts:
+    description: "Просмотр альт-аккаунтов по нику/IP"
     default: op
   tdn.clear:
-    description: Снятие модификаторов с игрока
+    description: "Снятие модификаторов с игрока"
     default: op
   tdn.nickclear:
-    description: Снятие модификаторов по нику/IP (только консоль)
+    description: "Снятие модификаторов по нику/IP"
+    default: op
+  tdn.ipclear:
+    description: "Снятие модификаторов по IP (через ник)"
     default: op
   tdn.disable:
-    description: Отключение урона для игрока
+    description: "Отключение урона для игрока"
     default: op
   tdn.ipdisable:
-    description: Отключение урона по нику/IP (только консоль)
+    description: "Отключение урона по нику/IP"
     default: op
   tdn.reduce:
-    description: Уменьшение урона для игрока
+    description: "Уменьшение урона для игрока"
     default: op
   tdn.ipreduce:
-    description: Уменьшение урона по нику/IP (только консоль)
+    description: "Уменьшение урона по нику/IP"
     default: op
   tdn.amplify:
-    description: Увеличение урона для игрока
+    description: "Увеличение урона для игрока"
     default: op
   tdn.ipamplify:
-    description: Увеличение урона по нику/IP (только консоль)
+    description: "Увеличение урона по нику/IP"
     default: op
   tdn.status:
-    description: Просмотр статуса урона игрока
+    description: "Просмотр статуса урона игрока"
     default: op

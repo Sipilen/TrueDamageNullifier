@@ -1,3 +1,18 @@
+# Модификаторы для конкретных игроков (UUID)
+player-modifiers: {}
+
+# Модификаторы для ников (lowercase, с привязкой по IP)
+nick-modifiers: {}
+
+# Привязки IP (автоматически)
+ip-bindings: {}
+
+# UUID-BIND: Привязки UUID (для перманентности)
+uuid-bindings: {}
+
+# ALTS: История альтов по IP
+ip-alts: {}
+
 pvp_disabled: "§cВаш PvP отключен. Причина: %reason%. Время до окончания: %time%"
 pvp_enabled: "§aВаш модификатор урона снят, PvP включен."
 damage_reduced: "§aУрон, наносимый %player%, уменьшен до 1/3. Время: %time%"
@@ -14,9 +29,12 @@ usage_disable: "§cИспользование: /tdn disable <игрок> <вре
 usage_reduce: "§cИспользование: /tdn reduce <игрок> <время>"
 usage_amplify: "§cИспользование: /tdn amplify <игрок> <время>"
 usage_clear: "§cИспользование: /tdn clear <игрок>"
-unknown_command: "§cНеизвестная команда! Используйте: disable, reduce, amplify, status, reload, list, clear, ipdisable, ipreduce, ipamplify, nickclear, nicklist"
+unknown_command: "§cНеизвестная команда! Используйте: disable, reduce, amplify, status, reload, list, clear, ipdisable, ipreduce, ipamplify, nickclear, nicklist, ipclear, alts"
 
 # Новые для IP/nick
 nick_damage_disabled: "§aНик %nick% (IP-привязка) отключен на %time% (причина: %reason%)"
 nick_damage_reduced: "§aУрон снижен для ника %nick% (IP-привязка) на %time%"
 nick_damage_amplified: "§aУрон усилен для ника %nick% (IP-привязка) на %time%"
+
+# ALTS: Уведомления (fallback для hardcoded)
+alt_notification: "§c[TDN] Игрок %oldnick% зашёл с нового аккаунта %newnick%. Модификатор %mod% применён. IP: %ip%"
